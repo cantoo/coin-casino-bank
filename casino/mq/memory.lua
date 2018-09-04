@@ -16,7 +16,10 @@ function _M:push(elem)
 end
 
 function _M:get(seq)
-	self.sema.wait()
+	local ok, _ = self.sema.wait(30)
+	if not ok then
+		return nil
+	end
 
 	local out = {}
 	for i = seq, #self.queue do

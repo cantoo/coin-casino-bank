@@ -1,6 +1,7 @@
 -- simple chat with redis
-local server = require "resty.websocket.server"
-local redis = require "resty.redis"
+local server = require("resty.websocket.server")
+local cjson = require("cjson.safe")
+local game = require("game.ddz")
 
 --获取聊天室id
 local len = string.len('/s/')
@@ -20,36 +21,24 @@ if not wb then
   return ngx.exit(444)
 end
 
+local mq = game:join()
 
-local push = function()
-    -- --create redis
-    local red = redis:new()
-    red:set_timeout(5000) -- 1 sec
-    local ok, err = red:connect("127.0.0.1", 6379)
-    if not ok then
-        ngx.log(ngx.ERR, "failed to connect redis: ", err)
-        wb:send_close()
-        return
-    end
-
-    --sub
-    local res, err = red:subscribe(channel_name)
-    if not res then
-        ngx.log(ngx.ERR, "failed to sub redis: ", err)
-        wb:send_close()
-        return
-    end
-
+local function push()
     -- loop : read from redis
     while true do
-        local res, err = red:read_reply()
-        if res then
-            local item = res[3]
-            local bytes, err = wb:send_text(tostring(msg_id)..item)
-            if not bytes then
-                -- better error handling
-                ngx.log(ngx.ERR, "failed to send text: ", err)
-                return ngx.exit(444)
+        local res = mq:wait()
+        if type(res) == "table" then
+            for _, msg in ipairs(res) do
+                local text = msg
+                if type(text) == "table" then
+                    text = cjson.encode(text)
+                end
+
+                local bytes, err = wb:send_text(tostring(text))
+                if not bytes then
+                    ngx.log(ngx.ERR, "failed to send text: ", err)
+                    return ngx.exit(444)
+                end
             end
         end
     end
