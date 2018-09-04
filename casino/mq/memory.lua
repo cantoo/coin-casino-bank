@@ -6,17 +6,17 @@ local mt = { __index = _M }
 
 function _M:new() 
 	return setmetatable({
-		queue = {}
-		sema = semaphore:new()}, mt)
+		queue = {},
+		sema = semaphore.new()}, mt)
 end
 
 function _M:push(elem)
 	table.insert(self.queue, elem)
-	self.sema.post(1)
+	self.sema:post(1)
 end
 
 function _M:get(seq)
-	local ok, _ = self.sema.wait(30)
+	local ok, _ = self.sema:wait(30)
 	if not ok then
 		return nil
 	end
@@ -32,3 +32,5 @@ end
 function _M:clear()
 	self.queue = {}
 end
+
+return _M
