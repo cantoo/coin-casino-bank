@@ -3,11 +3,11 @@ local server = require("resty.websocket.server")
 local cjson = require("cjson.safe")
 local game = require("game.ddz")
 
---获取聊天室id
-local len = string.len('/s/')
-local channel_id = string.sub(uri,len+1,-1)
+-- --获取聊天室id
+-- local len = string.len('/s/')
+-- local channel_id = string.sub(uri,len+1,-1)
 
-local channel_name = "chat_" .. tostring(channel_id)
+-- local channel_name = "chat_" .. tostring(channel_id)
 
 --create connection
 local wb, err = server:new{
@@ -76,18 +76,7 @@ while true do
     elseif typ == "pong" then
         --ngx.log(ngx.ERR, "client ponged")
     elseif typ == "text" then
-        --send to redis
-        local red2 = redis:new()
-        red2:set_timeout(1000) -- 1 sec
-        local ok, err = red2:connect("127.0.0.1", 6379)
-        if not ok then
-            ngx.log(ngx.ERR, "failed to connect redis: ", err)
-            break
-        end
-        local res, err = red2:publish(channel_name, data)
-        if not res then
-            ngx.log(ngx.ERR, "failed to publish redis: ", err)
-        end
+        game:play(data)
     end
 end
 
