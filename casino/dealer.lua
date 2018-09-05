@@ -9,9 +9,11 @@ local game = require("game.ddz")
 
 -- local channel_name = "chat_" .. tostring(channel_id)
 
+ngx.log(ngx.DEBUG, "in ws now")
+--ngx.print("hello")
 --create connection
 local wb, err = server:new{
-  timeout = 10000,
+  timeout = 100000,
   max_payload_len = 65535
 }
 
@@ -21,12 +23,14 @@ if not wb then
   return ngx.exit(444)
 end
 
-local mq = game:join()
+local mq = game.join()
 
 local function push()
+    local seq = 1
     -- loop : read from redis
     while true do
-        local res = mq:wait()
+        local res = mq:get(seq)
+	ngx.log(ngx.DEBUG, "client mq get ", cjson.encode(res))
         if type(res) == "table" then
             for _, msg in ipairs(res) do
                 local text = msg
@@ -34,11 +38,14 @@ local function push()
                     text = cjson.encode(text)
                 end
 
+		ngx.log(ngx.DEBUG, "get text", text)
                 local bytes, err = wb:send_text(tostring(text))
                 if not bytes then
                     ngx.log(ngx.ERR, "failed to send text: ", err)
                     return ngx.exit(444)
                 end
+
+		seq = seq + 1
             end
         end
     end
@@ -49,7 +56,7 @@ local co = ngx.thread.spawn(push)
 
 --main loop
 while true do
-    -- 获取数据
+    ngx.log(ngx.DEBUG, "in client main loop")
     local data, typ, err = wb:recv_frame()
 
     -- 如果连接损坏 退出
@@ -76,7 +83,7 @@ while true do
     elseif typ == "pong" then
         --ngx.log(ngx.ERR, "client ponged")
     elseif typ == "text" then
-        game:play(data)
+        game.play(data)
     end
 end
 
