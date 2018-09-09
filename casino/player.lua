@@ -9,11 +9,9 @@ local game = require("game.ddz")
 
 -- local channel_name = "chat_" .. tostring(channel_id)
 
-ngx.log(ngx.DEBUG, "in ws now")
---ngx.print("hello")
 --create connection
 local wb, err = server:new{
-  timeout = 100000,
+  timeout = 10000,
   max_payload_len = 65535
 }
 
@@ -23,16 +21,12 @@ if not wb then
   return ngx.exit(444)
 end
 
-local mq = game.join()
-game.chgfck()
+local mq = game:join()
 
 local function push()
-    local seq = 1
     -- loop : read from redis
     while true do
-	ngx.log(ngx.DEBUG, "dealer fck=", game.getfck())
-        local res = mq:get(seq)
-	ngx.log(ngx.DEBUG, "client mq get ", cjson.encode(res))
+        local res = mq:wait()
         if type(res) == "table" then
             for _, msg in ipairs(res) do
                 local text = msg
@@ -40,14 +34,11 @@ local function push()
                     text = cjson.encode(text)
                 end
 
-		ngx.log(ngx.DEBUG, "get text", text)
                 local bytes, err = wb:send_text(tostring(text))
                 if not bytes then
                     ngx.log(ngx.ERR, "failed to send text: ", err)
                     return ngx.exit(444)
                 end
-
-		seq = seq + 1
             end
         end
     end
@@ -57,35 +48,34 @@ end
 local co = ngx.thread.spawn(push)
 
 --main loop
-while true do
-    ngx.log(ngx.DEBUG, "in client main loop")
+while true do   
+    -- 获取数据
     local data, typ, err = wb:recv_frame()
-
-    -- 如果连接损坏 退出
-    if wb.fatal then
-        ngx.log(ngx.ERR, "failed to receive frame: ", err)
-        return ngx.exit(444)
+    
+    while err == "again" do
+        local fragment, _, err = wb:recv_frame()
+        data = data .. fragment
     end
 
     if not data then
-        local bytes, err = wb:send_ping()
-        if not bytes then
-          ngx.log(ngx.ERR, "failed to send ping: ", err)
-          return ngx.exit(444)
+        if not string.find(err, "timeout", 1, true) then
+            ngx.log(ngx.ERR, "recv_frame error", err)
+            return ngx.exit(444)
         end
-        --ngx.log(ngx.ERR, "send ping: ", data)
-    elseif typ == "close" then
+    end
+
+    if typ == "close" then
         break
     elseif typ == "ping" then
         local bytes, err = wb:send_pong()
         if not bytes then
-            ngx.log(ngx.ERR, "failed to send pong: ", err)
-            return ngx.exit(444)
+            ngx.log(ngx.ERR, "send_pong error", err)
+            return
         end
     elseif typ == "pong" then
-        --ngx.log(ngx.ERR, "client ponged")
+        --ngx.log(ngx.DEBUG, "client ponged")
     elseif typ == "text" then
-        game.play(data)
+        game:play(data)
     end
 end
 
