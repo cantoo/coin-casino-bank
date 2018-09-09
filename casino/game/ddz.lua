@@ -6,6 +6,15 @@ local _M = {}
 
 local hands = mq:new()
 local players = {}
+local fck = 5
+
+function _M.chgfck()
+	fck = 6
+end
+
+function _M.getfck()
+	return fck
+end
 
 function _M.join()
 	local player = mq:new()
@@ -14,15 +23,18 @@ function _M.join()
 end
 
 function _M.play(hand)
-	ngx.log(ngx.DEBUG, "play hand=", hand)
-	ngx.log(ngx.DEBUG, "qqq=", cjson.encode(hands.qqq))
 	hands:push(hand)
 	--table.insert(hands, hand)
+	ngx.log(ngx.DEBUG, "play qqq=", cjson.encode(hands.qqq))
+	ngx.log(ngx.DEBUG, "play count=", hands.sema:count())
 end
 
 function _M.main()
 	while true
 	do
+		ngx.log(ngx.DEBUG, "fck=", fck)
+		ngx.log(ngx.DEBUG, "main qqq=", cjson.encode(hands.qqq))
+		ngx.log(ngx.DEBUG, "main count=", hands.sema:count())
 		local newhands = hands:get(1) or {}
 		ngx.log(ngx.DEBUG, "newhands=", cjson.encode(newhands))
 		for _, hand in ipairs(newhands) do

@@ -24,11 +24,13 @@ if not wb then
 end
 
 local mq = game.join()
+game.chgfck()
 
 local function push()
     local seq = 1
     -- loop : read from redis
     while true do
+	ngx.log(ngx.DEBUG, "dealer fck=", game.getfck())
         local res = mq:get(seq)
 	ngx.log(ngx.DEBUG, "client mq get ", cjson.encode(res))
         if type(res) == "table" then
