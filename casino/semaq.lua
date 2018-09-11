@@ -5,14 +5,14 @@ local _M = {}
 
 local mt = { __index = _M }
 
-function _M:new() 
+function _M.new() 
 	return setmetatable({
-		qqq = {},
+		q = {},
 		sema = semaphore.new()}, mt)
 end
 
 function _M:push(elem)
-	table.insert(self.qqq, elem)
+	table.insert(self.q, elem)
 	self.sema:post(1)
 end
 
@@ -23,15 +23,15 @@ function _M:get(seq)
 	end
 
 	local out = {}
-	for i = seq, #self.qqq do
-		table.insert(out, self.qqq[i])
+	for i = seq, #self.q do
+		table.insert(out, self.q[i])
 	end 
 
 	return out
 end
 
 function _M:clear()
-	self.qqq = {}
+	self.q = {}
 end
 
 return _M
