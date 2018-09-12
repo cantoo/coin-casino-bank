@@ -1,4 +1,3 @@
-local cjson = require("cjson.safe")
 local semaphore = require("ngx.semaphore")
 
 local _M = {}
@@ -16,12 +15,11 @@ function _M:push(elem)
 	self.sema:post(1)
 end
 
-function _M:get(seq)
-	local ok, err = self.sema:wait(3)
-	if not ok then
-		return nil
-	end
+function _M:wait(timeout)
+	return self.sema:wait(timeout)
+end
 
+function _M:get(seq)
 	local out = {}
 	for i = seq, #self.q do
 		table.insert(out, self.q[i])
@@ -30,8 +28,10 @@ function _M:get(seq)
 	return out
 end
 
-function _M:clear()
+function _M:flush()
+	local q = self.q
 	self.q = {}
+	return q
 end
 
 return _M
