@@ -1,17 +1,15 @@
 -- simple chat with redis
 local server = require("resty.websocket.server")
 local cjson = require("cjson.safe")
-local game = require("game.ddz")
+local room = require("room")
 
--- --获取聊天室id
--- local len = string.len('/s/')
--- local channel_id = string.sub(uri,len+1,-1)
-
--- local channel_name = "chat_" .. tostring(channel_id)
+--获取聊天室id
+local len = string.len('/wb/')
+local uid = tonumber(string.sub(uri,len+1,-1))
 
 local wb, err = server:new{
-  timeout = 10000,
-  max_payload_len = 65535
+  timeout = 20000,
+  max_payload_len = 4096
 }
 
 if not wb then
@@ -19,24 +17,27 @@ if not wb then
   return ngx.exit(444)
 end
 
-local mq = game:join()
+-- TODO: 客户端必须先表明身份，并且登录态验证通过
+-- TODO: 如果uri中有tid，则先考虑comeback
+
+local desk = room:sit()
+if desk then
+    return ngx.exit(444)
+end
 
 local function push()
-    while true do
-        local res = mq:wait()
-        if type(res) == "table" then
-            for _, msg in ipairs(res) do
-                local text = msg
-                if type(text) == "table" then
-                    text = cjson.encode(text)
-                end
+    local seq = 0
 
-                local bytes, err = wb:send_text(tostring(text))
-                if not bytes then
-                    ngx.log(ngx.ERR, "failed to send text: ", err)
-                    return ngx.exit(444)
-                end
+    while true do
+        local res = desk:wait(uid)
+        for _, output in ipairs(res) do
+            local bytes, err = wb:send_text(tostring(output))
+            if not bytes then
+                ngx.log(ngx.ERR, "failed to send text: ", err)
+                return ngx.exit(444)
             end
+
+            seq = seq + 1
         end
     end
 end
@@ -72,7 +73,7 @@ while true do
     elseif typ == "pong" then
         --ngx.log(ngx.DEBUG, "client ponged")
     elseif typ == "text" then
-        game:play(data)
+        desk:play(data)
     end
 end
 

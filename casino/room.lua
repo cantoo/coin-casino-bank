@@ -4,20 +4,30 @@ local _M = {}
 
 local desks = {}
 
-function _M.join(uid)
-    for _, d in ipairs(desks) do
-        if d:available(uid) then
-            return d:join(uid)
+function _M.comeback(uid, tid)
+    for _, desk in ipairs(desks) do
+        if desk.tid ==  tid and desk:comeback(uid) then
+            return desk
         end
     end
 
-    return false
+    return nil
+end
+
+function _M.sit(uid)
+    for _, desk in ipairs(desks) do
+        if desk.join(uid) then
+            return desk
+        end
+    end
+
+    return nil
 end
 
 function _M.main()
-    for i = 1, 1000 do
-        table.insert(games, game.new())
-        ngx.timer.at(0, game.main)
+    for i = 1, 1 do
+        table.insert(desks, desk.new())
+        ngx.timer.at(0, desk.main)
     end
 end
 

@@ -1,35 +1,22 @@
 local cjson = require("cjson.safe")
-local semaphore = require("ngx.semaphore")
-local mq = require("mq.memory")
 
-local _M = {}
+local _M = {
+	PLAYER_NUM = 3
+}
 
-local hands = mq:new()
-local players = {}
+local mt = { __index = _M }
 
-function _M.join()
-	local player = mq:new()
-	table.insert(players, player)
-	return player
+function _M.new()
+	return setmetatable({}, mt)
 end
 
-function _M.play(hand)
-	hands:push(hand)
+function _M.sit()
 end
 
-function _M.main()
-	while true
-	do
-		local newhands = hands:get(1) or {}
-		for _, hand in ipairs(newhands) do
-			for _, player in ipairs(players) do 
-				player:push(hand)
-			end
-		end
-
-		hands:clear()
-	end
+function _M:play(seatno, hand)
+	return {
+		outputs = {hand, hand, hand}
+	}
 end
-
 
 return _M
