@@ -9,13 +9,11 @@ local game = require("game.ddz")
 
 -- local channel_name = "chat_" .. tostring(channel_id)
 
---create connection
 local wb, err = server:new{
   timeout = 10000,
   max_payload_len = 65535
 }
 
---create success
 if not wb then
   ngx.log(ngx.ERR, "failed to new websocket: ", err)
   return ngx.exit(444)
@@ -24,7 +22,6 @@ end
 local mq = game:join()
 
 local function push()
-    -- loop : read from redis
     while true do
         local res = mq:wait()
         if type(res) == "table" then
