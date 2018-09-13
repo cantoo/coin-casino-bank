@@ -5,9 +5,9 @@ local _M = {}
 local desks = {}
 
 function _M.comeback(uid, tid)
-    for _, desk in ipairs(desks) do
-        if desk.tid ==  tid and desk:comeback(uid) then
-            return desk
+    for _, d in ipairs(desks) do
+        if d.tid ==  tid and d:comeback(uid) then
+            return d
         end
     end
 
@@ -15,9 +15,9 @@ function _M.comeback(uid, tid)
 end
 
 function _M.sit(uid)
-    for _, desk in ipairs(desks) do
-        if desk.join(uid) then
-            return desk
+    for _, d in ipairs(desks) do
+        if d:sit(uit) then
+            return d
         end
     end
 
@@ -26,8 +26,10 @@ end
 
 function _M.main()
     for i = 1, 1 do
-        table.insert(desks, desk.new())
-        ngx.timer.at(0, desk.main)
+	-- TODO: get tid from seq server
+	local d = desk.new(i)
+        table.insert(desks, d)
+        ngx.timer.at(0, function () d:main() end)
     end
 end
 

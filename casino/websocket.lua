@@ -5,7 +5,7 @@ local room = require("room")
 
 --获取聊天室id
 local len = string.len('/wb/')
-local uid = tonumber(string.sub(uri,len+1,-1))
+local uid = tonumber(string.sub(ngx.var.uri,len+1,-1))
 
 local wb, err = server:new{
   timeout = 20000,
@@ -21,7 +21,7 @@ end
 -- TODO: 如果uri中有tid，则先考虑comeback
 
 local desk = room:sit()
-if desk then
+if not desk then
     return ngx.exit(444)
 end
 

@@ -1,4 +1,3 @@
-local player = require("player")
 local mq = require("semaq")
 local game = require("games.ddz")
 
@@ -9,14 +8,14 @@ local mt = { __index = _M }
 function _M.new(tid)
     local obj = { 
         tid = tid,
-        q = mq.new, 
+        q = mq.new(), 
         game = game.new(), 
         status = 0,
         players = {} 
     }
 
-    for i = i, game.PLAYER_NUM do
-        table.insert(players, {
+    for i = 1, game.PLAYER_NUM do
+        table.insert(obj.players, {
             uid = 0,
         })
     end
@@ -44,9 +43,9 @@ function _M:sit(uid)
     -- TODO: 用户余额判断，是否符合游戏最低准入
     for seatno, player in ipairs(self.players) do
         if player.uid == 0 then
-            self.players[seatno].uid = uid
-            self.players[seatno].q = mq.new()
-            game.sit(seatno)
+            player.uid = uid
+            player.q = mq.new()
+            self.game:sit(seatno)
             return true
         end
     end
@@ -94,3 +93,4 @@ function _M:main()
     end
 end
 
+return _M
