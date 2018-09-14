@@ -6,9 +6,10 @@ local room = require("room")
 --获取聊天室id
 local len = string.len('/wb/')
 local uid = tonumber(string.sub(ngx.var.uri,len+1,-1))
+ngx.log(ngx.DEBUG, "uri=", ngx.var.uri, ",uid=", uid)
 
 local wb, err = server:new{
-  timeout = 20000,
+  timeout = 45000,
   max_payload_len = 4096
 }
 
@@ -20,7 +21,7 @@ end
 -- TODO: 客户端必须先表明身份，并且登录态验证通过
 -- TODO: 如果uri中有tid，则先考虑comeback
 
-local desk = room:sit()
+local desk = room.sit(uid)
 if not desk then
     return ngx.exit(444)
 end
@@ -29,15 +30,19 @@ local function push()
     local seq = 0
 
     while true do
-        local res = desk:wait(uid)
+        local res
+	res, seq = desk:wait(uid, seq)
+	if not res then
+		ngx.log(ngx.DEBUG, "desk wait fail,tid=", desk.tid, ",uid=", uid)
+		return ngx.exit(444)
+	end
+
         for _, output in ipairs(res) do
             local bytes, err = wb:send_text(tostring(output))
             if not bytes then
                 ngx.log(ngx.ERR, "failed to send text: ", err)
                 return ngx.exit(444)
             end
-
-            seq = seq + 1
         end
     end
 end
@@ -73,7 +78,7 @@ while true do
     elseif typ == "pong" then
         --ngx.log(ngx.DEBUG, "client ponged")
     elseif typ == "text" then
-        desk:play(data)
+        desk:play(uid, data)
     end
 end
 

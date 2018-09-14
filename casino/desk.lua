@@ -1,5 +1,6 @@
 local mq = require("semaq")
 local game = require("games.ddz")
+local cjson = require("cjson.safe")
 
 local _M = {}
 
@@ -60,10 +61,12 @@ function _M:wait(uid, seq)
             if ok then
                 return player.q:get(seq)
             end
+
+		return {}, seq
         end
     end
 
-    return {}
+    return nil
 end
 
 function _M:play(uid, hand)
@@ -85,7 +88,9 @@ function _M:main()
                 local res = self.game:play(hand.seatno, hand.hand)
                 if type(res.outputs) == "table" then
                     for i, output in ipairs(res.outputs) do
-                        self.players[i].q:push(output)
+			if self.players[i].uid ~= 0 then
+                        	self.players[i].q:push(output)
+			end
                     end
                 end
             end

@@ -1,4 +1,5 @@
 local desk = require("desk")
+local cjson = require("cjson.safe")
 
 local _M = {}
 
@@ -16,7 +17,7 @@ end
 
 function _M.sit(uid)
     for _, d in ipairs(desks) do
-        if d:sit(uit) then
+        if d:sit(uid) then
             return d
         end
     end
