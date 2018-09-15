@@ -10,7 +10,7 @@ function _M.new()
 	return setmetatable({}, mt)
 end
 
-function _M.sit()
+function _M:sit()
 end
 
 function _M:play(seatno, hand)

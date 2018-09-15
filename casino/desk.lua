@@ -62,7 +62,7 @@ function _M:wait(uid, seq)
                 return player.q:get(seq)
             end
 
-		return {}, seq
+            return {}, seq
         end
     end
 
@@ -88,9 +88,9 @@ function _M:main()
                 local res = self.game:play(hand.seatno, hand.hand)
                 if type(res.outputs) == "table" then
                     for i, output in ipairs(res.outputs) do
-			if self.players[i].uid ~= 0 then
-                        	self.players[i].q:push(output)
-			end
+                        if self.players[i].uid ~= 0 then
+                            self.players[i].q:push(output)
+                        end
                     end
                 end
             end
