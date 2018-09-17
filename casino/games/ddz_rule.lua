@@ -110,6 +110,7 @@ local function get_combination_value(cards)
         return a < b
     end
 
+    table.sort(singles, smaller)
     table.sort(doubles, smaller)
     table.sort(triples, smaller)
     table.sort(quartets, smaller)
@@ -126,6 +127,7 @@ local function get_combination_value(cards)
 
     for combination, cards_num in pairs(combinations) do
         if #cards == cards_num then
+            -- TODO: 复杂版型的value有边界条件，如不存在以10以上开始的顺子
             if combination == "triple_plus_one" then
                 if #triples == 1 and #quartets == 0 then
                     return {
