@@ -1,3 +1,5 @@
+local resty_string = require("resty.string")
+local resty_random = require("resty.random")
 local cjson = require("cjson.safe")
 
 local _M = {
@@ -6,8 +8,22 @@ local _M = {
 
 local mt = { __index = _M }
 
+local STATUS_EMPTY = 0
+local STATUS_SEATED = 1
+local STATUS_READY = 10
+
 function _M.new()
-    return setmetatable({}, mt)
+    return setmetatable({
+        players = { 
+            {
+                status = STATUS_EMPTY,
+            }, {
+                status = STATUS_EMPTY,
+            }, {
+                status = STATUS_EMPTY,
+            },
+        },
+    }, mt)
 end
 
 local function get_combination_value(cards)
@@ -141,7 +157,39 @@ local function beats(current, previous)
     return current.value > previous.value
 end
 
-function _M:sit()
+local function random()
+    return tonumber(resty_string.to_hex(resty_random.bytes(2, true)), 16)
+end
+
+function _M:shuffle()
+    local cards = {}
+    for i = 1, 54 do
+        table.insert(cards, i)
+    end
+
+    for i = #cards, 1, -1 do
+        local rd = random() % i + 1
+        cards[i], cards[rd] = cards[rd], cards[i]
+    end
+
+    for i = 1, 20, do
+    end
+end
+
+function _M:sit(seatno)
+    if self.players[seatno].status == STATUS_SEATED then
+        return false
+    end
+
+    self.players[seatno].status = STATUS_READY
+    for _, player in ipairs(self.players) do
+        if player.status ~= STATUS_READY then
+            return true
+        end
+    end
+
+    shuffle()
+    return true
 end
 
 function _M:play(seatno, hand)

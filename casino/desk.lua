@@ -24,6 +24,16 @@ function _M.new(tid)
     return setmetatable(obj, mt)
 end
 
+function _M:update(res)
+    if type(res.outputs) == "table" then
+        for i, output in ipairs(res.outputs) do
+            if self.players[i].uid ~= 0 and output ~= "" then
+                self.players[i].q:push(output)
+            end
+        end
+    end 
+end
+
 -- 重连加入
 function _M:comeback(uid)
     if status == 0 then
@@ -46,8 +56,7 @@ function _M:sit(uid)
         if player.uid == 0 then
             player.uid = uid
             player.q = mq.new()
-            self.game:sit(seatno)
-            return true
+            return self.game:sit(seatno)
         end
     end
 
@@ -85,14 +94,7 @@ function _M:main()
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                local res = self.game:play(hand.seatno, hand.hand)
-                if type(res.outputs) == "table" then
-                    for i, output in ipairs(res.outputs) do
-                        if self.players[i].uid ~= 0 then
-                            self.players[i].q:push(output)
-                        end
-                    end
-                end
+                update(self.game:play(hand.seatno, hand.hand))
             end
         end
     end
