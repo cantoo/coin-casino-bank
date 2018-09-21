@@ -33,8 +33,14 @@ function _M:update(res)
 
     if type(res.outputs) == "table" then
         for i, output in ipairs(res.outputs) do
-            if self.players[i].uid ~= 0 and output ~= "" then
-                self.players[i].q:push(output)
+            if self.players[i].uid ~= 0 then
+                if output ~= nil && output ~= "" then
+                    self.players[i].q:push(tostring(output))
+                end
+
+                if type(output) == "table" then
+                    self.players[i].q:push(cjson.encode(output))
+                end
             end
         end
     end 
