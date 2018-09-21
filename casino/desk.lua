@@ -18,6 +18,8 @@ function _M.new(tid)
     for i = 1, game.PLAYER_NUM do
         table.insert(obj.players, {
             uid = 0,
+            seq = 1,
+            q = nil,
         })
     end
 
@@ -25,6 +27,10 @@ function _M.new(tid)
 end
 
 function _M:update(res)
+    if type(res) ~= "table" then
+        return 
+    end
+
     if type(res.outputs) == "table" then
         for i, output in ipairs(res.outputs) do
             if self.players[i].uid ~= 0 and output ~= "" then
@@ -34,44 +40,50 @@ function _M:update(res)
     end 
 end
 
--- 重连加入
-function _M:comeback(uid)
-    if status == 0 then
-        return false
-    end
+-- TODO: 新加入，入场金合法性判断
+-- TODO: 防作弊，相邻IP，玩家间互相屏蔽等
 
+function _M:sit(p)
     for seatno, player in ipairs(self.players) do
-        if player.uid == uid then
-            return true
+        if p.uid == player.uid then
+            -- 重放
+            player.seq = 1
+            return seatno
         end
     end
 
-    return false
-end
-
-function _M:sit(uid)
-    -- 新加入
-    -- TODO: 用户余额判断，是否符合游戏最低准入
-    for seatno, player in ipairs(self.players) do
-        if player.uid == 0 then
-            player.uid = uid
-            player.q = mq.new()
-            return self.game:sit(seatno)
-        end
+    local seatno, res = self.game:join()
+    if seatno then
+        local player = self.players[seatno]
+        player.uid = p.uid
+        player.seq = 1
+        player.q = mq.new()
+        _M:update(res)
+        return seatno
     end
 
-    return false
+    -- for seatno, player in ipairs(self.players) do
+    --     if player.uid == 0 then
+    --         player.uid = uid
+    --         player.q = mq.new()
+    --         return self.game:sit(seatno)
+    --     end
+    -- end
+
+    return nil
 end
 
-function _M:wait(uid, seq) 
+function _M:wait(uid) 
     for _, player in ipairs(self.players) do
         if player.uid == uid then
-            local ok, _ = player.q:wait(3)
+            local ok, _ = player.q:wait()
             if ok then
-                return player.q:get(seq)
+                local res = player.q:get(player.seq)
+                self.seq = self.seq + #res
+                return res
             end
 
-            return {}, seq
+            return {}
         end
     end
 

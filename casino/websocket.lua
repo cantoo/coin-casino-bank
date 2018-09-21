@@ -1,12 +1,11 @@
--- simple chat with redis
 local server = require("resty.websocket.server")
 local cjson = require("cjson.safe")
 local room = require("room")
 
---获取聊天室id
-local len = string.len('/wb/')
-local uid = tonumber(string.sub(ngx.var.uri,len+1,-1))
-ngx.log(ngx.DEBUG, "uri=", ngx.var.uri, ",uid=", uid)
+local tid = ngx.var[1]
+-- TODO: 从登录态中反查到uid
+local uid = ngx.var.arg_uid
+ngx.log(ngx.DEBUG, "new player,tid=", tid, ",uid=", uid)
 
 local wb, err = server:new{
   timeout = 45000,
@@ -18,24 +17,19 @@ if not wb then
   return ngx.exit(444)
 end
 
--- TODO: 客户端必须先表明身份，并且登录态验证通过
--- TODO: 如果uri中有tid，则先考虑comeback
 
-local desk = room.sit(uid)
+local desk = room.sit(tid, { uid = uid } )
 if not desk then
     return ngx.exit(444)
 end
 
 local function push()
-    local seq = 0
-
     while true do
-        local res
-	res, seq = desk:wait(uid, seq)
-	if not res then
-		ngx.log(ngx.DEBUG, "desk wait fail,tid=", desk.tid, ",uid=", uid)
-		return ngx.exit(444)
-	end
+        local res = desk:wait(uid)
+        if not res then
+            ngx.log(ngx.DEBUG, "desk wait fail,tid=", tid, ",uid=", uid)
+            return ngx.exit(444)
+        end
 
         for _, output in ipairs(res) do
             local bytes, err = wb:send_text(tostring(output))

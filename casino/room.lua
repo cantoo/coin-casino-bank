@@ -5,19 +5,9 @@ local _M = {}
 
 local desks = {}
 
-function _M.comeback(uid, tid)
+function _M.sit(tid, player)
     for _, d in ipairs(desks) do
-        if d.tid ==  tid and d:comeback(uid) then
-            return d
-        end
-    end
-
-    return nil
-end
-
-function _M.sit(uid)
-    for _, d in ipairs(desks) do
-        if d:sit(uid) then
+        if d.tid == tid and d:sit(player) then
             return d
         end
     end

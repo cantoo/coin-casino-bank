@@ -17,10 +17,13 @@ function _M.new()
         players = { 
             {
                 status = STATUS_EMPTY,
+                cards = {},
             }, {
                 status = STATUS_EMPTY,
+                cards = {},
             }, {
                 status = STATUS_EMPTY,
+                cards = {},
             },
         },
     }, mt)
@@ -161,6 +164,61 @@ local function random()
     return tonumber(resty_string.to_hex(resty_random.bytes(2, true)), 16)
 end
 
+local function get_card_by_index(index)
+    local name = { "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "BJ", "RJ" }
+    local color = { "diamond", "club", "heart", "spade" }
+    
+    if index <= 52 then
+        local value = math.floor(index / 4)
+        local rest = index % 4
+        return {
+            value = value + 3,
+            display = {
+                name = name[value + 1],
+                color = color[rest + 1]
+            }
+        }
+    end
+
+    if index >= 49 and index <= 52 then
+        return {
+            value = 15,
+            display = {
+                name = name[13],
+                color = color[rest + 1]
+            }
+        }
+    end
+
+    if index == 53 then
+        return {
+            value = 16,
+            display = {
+                name = "BJ",
+                color = "black"
+            }
+        }
+    end
+
+    if index == 54 then
+        return {
+            value = 17,
+            display = {
+                name = "RJ",
+                color = "red"
+            }
+        }
+    end
+
+    return nil
+end
+
+local function sort_cards(cards)
+    table.sort(cards function (a, b) 
+        return a.value < b.value
+    end)
+end
+
 function _M:shuffle()
     local cards = {}
     for i = 1, 54 do
@@ -172,24 +230,67 @@ function _M:shuffle()
         cards[i], cards[rd] = cards[rd], cards[i]
     end
 
+    local res = { 
+        outputs = {
+            {
+                typ = "deal",
+                cards = {},
+            },
+            {
+                typ = "deal",
+                cards = {},
+            },
+            {
+                typ = "deal",
+                cards = {},
+            }
+        }    
+    }
+
     for i = 1, 20, do
+        table.insert(res.outputs[1], get_card_by_index(cards[i]))
     end
+
+    for i = 21, 37, do
+        table.insert(res.outputs[2], get_card_by_index(cards[i]))
+    end
+
+    for i = 38, 54, do
+        table.insert(res.outputs[3], get_card_by_index(cards[i]))
+    end
+
+    sort_cards(outputs[1].cards)
+    self.players[1].cards = outputs[1].cards
+
+    sort_cards(outputs[2].cards)
+    self.players[2].cards = outputs[2].cards
+
+    sort_cards(outputs[3].cards)
+    self.players[3].cards = outputs[3].cards
+
+    return res
 end
 
-function _M:sit(seatno)
-    if self.players[seatno].status == STATUS_SEATED then
-        return false
+function _M:join()
+    local seatno
+    for i, player in ipairs(self.players) do
+        if player.status == STATUS_EMPTY then
+            player.status = STATUS_READY
+            seatno = i
+            break
+        end   
     end
 
-    self.players[seatno].status = STATUS_READY
-    for _, player in ipairs(self.players) do
-        if player.status ~= STATUS_READY then
-            return true
+    if seatno then
+        for _, player in ipairs(self.players) do
+            if player.status ~= STATUS_READY then
+                return seatno
+            end
         end
     end
 
-    shuffle()
-    return true
+    local res = shuffle()
+    return seatno, res
 end
 
 function _M:play(seatno, hand)

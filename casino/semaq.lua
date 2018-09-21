@@ -21,16 +21,11 @@ end
 
 function _M:get(seq)
 	local out = {}
-	if seq > #self.q then
-		seq = 1
-	end
-
 	for i = seq, #self.q do
 		table.insert(out, self.q[i])
-		seq = seq + 1
 	end 
 
-	return out, seq
+	return out
 end
 
 function _M:flush()
