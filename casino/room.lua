@@ -7,7 +7,6 @@ local desks = {}
 
 function _M.sit(tid, player)
     for _, d in ipairs(desks) do
-	ngx.log(ngx.DEBUG, "d.tid=", d.tid, ",tid", tid)
         if d.tid == tid and d:sit(player) then
             return d
         end

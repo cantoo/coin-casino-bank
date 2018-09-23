@@ -247,7 +247,7 @@ function _M:with_next(next, res)
     next.token = random(4)
     self.next = next
 
-    for seatno, output in ipairs(res) do
+    for seatno, output in ipairs(res.outputs) do
         if seatno == next.seatno then
             output.token = next.token
             output.timeout = next.timeout
@@ -288,9 +288,9 @@ function _M:shuffle()
     }
 
     for i = 1, 49, 3 do
-        table.insert(res.outputs[i].cards, get_card_by_index(cards[i]))
-        table.insert(res.outputs[i + 1].cards, get_card_by_index(cards[i]))
-        table.insert(res.outputs[i + 2].cards, get_card_by_index(cards[i]))
+        table.insert(res.outputs[1].cards, get_card_by_index(cards[i]))
+        table.insert(res.outputs[2].cards, get_card_by_index(cards[i + 1]))
+        table.insert(res.outputs[3].cards, get_card_by_index(cards[i + 2]))
     end
 
     -- 随机一个人当地主

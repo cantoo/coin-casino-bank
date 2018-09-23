@@ -62,24 +62,14 @@ function _M:sit(p)
     end
 
     local seatno, res = self.game:join()
-	ngx.log(ngx.DEBUG, "game players=", cjson.encode(self.game.players))
     if seatno then
         local player = self.players[seatno]
         player.uid = p.uid
         player.seq = 1
         player.q = mq.new()
-	ngx.log(ngx.DEBUG, "new player,uid=", p.uid)
         self:update(res)
         return seatno
     end
-
-    -- for seatno, player in ipairs(self.players) do
-    --     if player.uid == 0 then
-    --         player.uid = uid
-    --         player.q = mq.new()
-    --         return self.game:sit(seatno)
-    --     end
-    -- end
 
     return nil
 end
