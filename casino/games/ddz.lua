@@ -18,14 +18,16 @@ function _M.new()
             {
                 status = STATUS_EMPTY,
                 cards = {},
-            }, {
+            }, 
+		{
                 status = STATUS_EMPTY,
                 cards = {},
-            }, {
+            }, 
+		{
                 status = STATUS_EMPTY,
                 cards = {},
-            },
-        },
+            }
+        }
     }, mt)
 end
 
@@ -168,7 +170,7 @@ local function get_card_by_index(index)
     local name = { "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K", "A", "2", "BJ", "RJ" }
     local color = { "diamond", "club", "heart", "spade" }
     
-    if index <= 52 then
+    if index <= 48 then
         local value = math.floor(index / 4)
         local rest = index % 4
         return {
@@ -185,7 +187,7 @@ local function get_card_by_index(index)
             value = 15,
             display = {
                 name = name[13],
-                color = color[rest + 1]
+                color = color[index % 4 + 1]
             }
         }
     end
@@ -214,7 +216,7 @@ local function get_card_by_index(index)
 end
 
 local function sort_cards(cards)
-    table.sort(cards function (a, b) 
+    table.sort(cards, function (a, b) 
         return a.value < b.value
     end)
 end
@@ -247,26 +249,26 @@ function _M:shuffle()
         }    
     }
 
-    for i = 1, 20, do
-        table.insert(res.outputs[1], get_card_by_index(cards[i]))
+    for i = 1, 20 do
+        table.insert(res.outputs[1].cards, get_card_by_index(cards[i]))
     end
 
-    for i = 21, 37, do
-        table.insert(res.outputs[2], get_card_by_index(cards[i]))
+    for i = 21, 37 do
+        table.insert(res.outputs[2].cards, get_card_by_index(cards[i]))
     end
 
-    for i = 38, 54, do
-        table.insert(res.outputs[3], get_card_by_index(cards[i]))
+    for i = 38, 54 do
+        table.insert(res.outputs[3].cards, get_card_by_index(cards[i]))
     end
 
-    sort_cards(outputs[1].cards)
-    self.players[1].cards = outputs[1].cards
+    sort_cards(res.outputs[1].cards)
+    self.players[1].cards = res.outputs[1].cards
 
-    sort_cards(outputs[2].cards)
-    self.players[2].cards = outputs[2].cards
+    sort_cards(res.outputs[2].cards)
+    self.players[2].cards = res.outputs[2].cards
 
-    sort_cards(outputs[3].cards)
-    self.players[3].cards = outputs[3].cards
+    sort_cards(res.outputs[3].cards)
+    self.players[3].cards = res.outputs[3].cards
 
     return res
 end
@@ -287,9 +289,10 @@ function _M:join()
                 return seatno
             end
         end
+
     end
 
-    local res = shuffle()
+    local res = self:shuffle()
     return seatno, res
 end
 

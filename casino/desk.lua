@@ -34,7 +34,7 @@ function _M:update(res)
     if type(res.outputs) == "table" then
         for i, output in ipairs(res.outputs) do
             if self.players[i].uid ~= 0 then
-                if output ~= nil && output ~= "" then
+                if type(output) == "string" and output ~= "" then
                     self.players[i].q:push(tostring(output))
                 end
 
@@ -52,6 +52,7 @@ end
 function _M:sit(p)
     for seatno, player in ipairs(self.players) do
         if p.uid == player.uid then
+		ngx.log(ngx.DEBUG, "come back,uid=", p.uid)
             -- 重放
             player.seq = 1
             return seatno
@@ -59,12 +60,14 @@ function _M:sit(p)
     end
 
     local seatno, res = self.game:join()
+	ngx.log(ngx.DEBUG, "game players=", cjson.encode(self.game.players))
     if seatno then
         local player = self.players[seatno]
         player.uid = p.uid
         player.seq = 1
         player.q = mq.new()
-        _M:update(res)
+	ngx.log(ngx.DEBUG, "new player,uid=", p.uid)
+        self:update(res)
         return seatno
     end
 
@@ -82,10 +85,10 @@ end
 function _M:wait(uid) 
     for _, player in ipairs(self.players) do
         if player.uid == uid then
-            local ok, _ = player.q:wait()
+            local ok, _ = player.q:wait(3)
             if ok then
                 local res = player.q:get(player.seq)
-                self.seq = self.seq + #res
+                player.seq = player.seq + #res
                 return res
             end
 
@@ -112,7 +115,7 @@ function _M:main()
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                update(self.game:play(hand.seatno, hand.hand))
+                self:update(self.game:play(hand.seatno, hand.hand))
             end
         end
     end

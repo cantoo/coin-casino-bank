@@ -2,7 +2,7 @@ local server = require("resty.websocket.server")
 local cjson = require("cjson.safe")
 local room = require("room")
 
-local tid = ngx.var[1]
+local tid = tonumber(ngx.var[1])
 -- TODO: 从登录态中反查到uid
 local uid = ngx.var.arg_uid
 ngx.log(ngx.DEBUG, "new player,tid=", tid, ",uid=", uid)
