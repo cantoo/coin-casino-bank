@@ -3,31 +3,50 @@ local resty_random = require("resty.random")
 local cjson = require("cjson.safe")
 
 local _M = {
-    PLAYER_NUM = 3
+    SEAT_NUM = 3
 }
 
 local mt = { __index = _M }
 
-local STATUS_EMPTY = 0
-local STATUS_SEATED = 1
-local STATUS_READY = 10
+local seat_status = {
+    empty = 0,
+    seated = 1,
+    ready = 10,
+}
+
+local actions = {
+    claim = 10,
+    play = 20,
+}
+
+local timeouts = {
+    claim = 15,
+    play = 30,
+}
 
 function _M.new()
     return setmetatable({
-        players = { 
+        round_id = 0,
+        seats = { 
             {
-                status = STATUS_EMPTY,
+                status = seat_status.empty,
                 cards = {},
             }, 
 		{
-                status = STATUS_EMPTY,
+                status = seat_status.empty,
                 cards = {},
             }, 
 		{
-                status = STATUS_EMPTY,
+                status = seat_status.empty,
                 cards = {},
             }
-        }
+        },
+        next = {
+            seatno = 0,
+            action = "",
+            timeout = 0,
+        },
+        first_claim = 0,
     }, mt)
 end
 
@@ -162,8 +181,8 @@ local function beats(current, previous)
     return current.value > previous.value
 end
 
-local function random()
-    return tonumber(resty_string.to_hex(resty_random.bytes(2, true)), 16)
+local function random(bytes)
+    return tonumber(resty_string.to_hex(resty_random.bytes(bytes, true)), 16)
 end
 
 local function get_card_by_index(index)
@@ -192,6 +211,7 @@ local function get_card_by_index(index)
         }
     end
 
+    -- 小王
     if index == 53 then
         return {
             value = 16,
@@ -202,6 +222,7 @@ local function get_card_by_index(index)
         }
     end
 
+    -- 大王
     if index == 54 then
         return {
             value = 17,
@@ -221,6 +242,23 @@ local function sort_cards(cards)
     end)
 end
 
+function _M:with_next(next, res)
+    -- generator token
+    next.token = random(4)
+    self.next = next
+
+    for seatno, output in ipairs(res) do
+        if seatno == next.seatno then
+            output.token = next.token
+            output.timeout = next.timeout
+            break
+        end
+    end
+
+    res.timeout = next.timeout + 4
+    return res
+end
+
 function _M:shuffle()
     local cards = {}
     for i = 1, 54 do
@@ -228,7 +266,7 @@ function _M:shuffle()
     end
 
     for i = #cards, 1, -1 do
-        local rd = random() % i + 1
+        local rd = random(2) % i + 1
         cards[i], cards[rd] = cards[rd], cards[i]
     end
 
@@ -249,47 +287,37 @@ function _M:shuffle()
         }    
     }
 
-    for i = 1, 20 do
-        table.insert(res.outputs[1].cards, get_card_by_index(cards[i]))
+    for i = 1, 49, 3 do
+        table.insert(res.outputs[i].cards, get_card_by_index(cards[i]))
+        table.insert(res.outputs[i + 1].cards, get_card_by_index(cards[i]))
+        table.insert(res.outputs[i + 2].cards, get_card_by_index(cards[i]))
     end
 
-    for i = 21, 37 do
-        table.insert(res.outputs[2].cards, get_card_by_index(cards[i]))
-    end
-
-    for i = 38, 54 do
-        table.insert(res.outputs[3].cards, get_card_by_index(cards[i]))
-    end
-
-    sort_cards(res.outputs[1].cards)
-    self.players[1].cards = res.outputs[1].cards
-
-    sort_cards(res.outputs[2].cards)
-    self.players[2].cards = res.outputs[2].cards
-
-    sort_cards(res.outputs[3].cards)
-    self.players[3].cards = res.outputs[3].cards
-
-    return res
+    -- 随机一个人当地主
+    self.first_claim = random(1) % 3 + 1
+    return self:with_next({
+        seatno = self.first_claim,
+        action = actions.claim,
+        timeout = timeouts.claim,
+    }, res)
 end
 
 function _M:join()
     local seatno
-    for i, player in ipairs(self.players) do
-        if player.status == STATUS_EMPTY then
-            player.status = STATUS_READY
+    for i, seat in ipairs(self.seats) do
+        if seat.status == seat_status.empty then
+            seat.status = seat_status.ready
             seatno = i
             break
         end   
     end
 
     if seatno then
-        for _, player in ipairs(self.players) do
-            if player.status ~= STATUS_READY then
+        for _, seat in ipairs(self.seats) do
+            if seat.status ~= seat_status.ready then
                 return seatno
             end
         end
-
     end
 
     local res = self:shuffle()

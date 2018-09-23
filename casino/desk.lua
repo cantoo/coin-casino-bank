@@ -15,7 +15,7 @@ function _M.new(tid)
         players = {} 
     }
 
-    for i = 1, game.PLAYER_NUM do
+    for i = 1, game.SEAT_NUM do
         table.insert(obj.players, {
             uid = 0,
             seq = 1,
@@ -44,6 +44,8 @@ function _M:update(res)
             end
         end
     end 
+
+    return res.timeout
 end
 
 -- TODO: 新加入，入场金合法性判断
@@ -115,7 +117,7 @@ function _M:main()
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                self:update(self.game:play(hand.seatno, hand.hand))
+                timeout = self:update(self.game:play(hand.seatno, hand.hand))
             end
         end
     end
