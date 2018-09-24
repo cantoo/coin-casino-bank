@@ -17,7 +17,6 @@ function _M.new(tid)
 
     for i = 1, game.SEAT_NUM do
         table.insert(obj.players, {
-            uid = 0,
             seq = 1,
             q = nil,
         })
@@ -33,7 +32,7 @@ function _M:update(res)
 
     if type(res.outputs) == "table" then
         for i, output in ipairs(res.outputs) do
-            if self.players[i].uid ~= 0 then
+            if self.players[i].q then
                 if type(output) == "string" and output ~= "" then
                     self.players[i].q:push(tostring(output))
                 end
@@ -45,26 +44,30 @@ function _M:update(res)
         end
     end 
 
-    return res.timeout
+    return res.timeout or 1
 end
 
 -- TODO: 新加入，入场金合法性判断
 -- TODO: 防作弊，相邻IP，玩家间互相屏蔽等
 
 function _M:sit(p)
-    for seatno, player in ipairs(self.players) do
-        if p.uid == player.uid then
-		ngx.log(ngx.DEBUG, "come back,uid=", p.uid)
-            -- 重放
-            player.seq = 1
-            return seatno
-        end
+    local seatno = self.game:comeback(p)
+    if seatno then
+        -- 重放
+        local player = self.players[seatno]
+        player.seq = 1
+        return seatno
     end
+    
+    -- for seatno, player in ipairs(self.players) do
+    --     if self.game.players[seatno].uid == p.uid then
+	-- 	ngx.log(ngx.DEBUG, "come back,uid=", p.uid)
+    --     end
+    -- end
 
-    local seatno, res = self.game:join()
+    local seatno, res = self.game:join(uid)
     if seatno then
         local player = self.players[seatno]
-        player.uid = p.uid
         player.seq = 1
         player.q = mq.new()
         self:update(res)
@@ -75,35 +78,52 @@ function _M:sit(p)
 end
 
 function _M:wait(uid) 
-    for _, player in ipairs(self.players) do
-        if player.uid == uid then
-            local ok, _ = player.q:wait(3)
-            if ok then
-                local res = player.q:get(player.seq)
-                player.seq = player.seq + #res
-                return res
-            end
-
-            return {}
+    local seatno = self.game:get_seatno(uid)
+    if seatno then
+    local player = self.players[seatno]
+        local ok, _ = player.q:wait(3)
+        if ok then
+            local res = player.q:get(player.seq)
+            player.seq = player.seq + #res
+            return res
         end
+
+        return {}
     end
+
+    -- for _, player in ipairs(self.players) do
+    --     if self.game:get_seatno == uid then
+    --         local ok, _ = player.q:wait(3)
+    --         if ok then
+    --             local res = player.q:get(player.seq)
+    --             player.seq = player.seq + #res
+    --             return res
+    --         end
+
+    --         return {}
+    --     end
+    -- end
 
     return nil
 end
 
 function _M:play(uid, hand)
-    for seatno, player in ipairs(self.players) do
-        if player.uid == uid then
-            self.q:push({seatno = seatno, hand = hand})
-        end
-    end
+    -- for seatno, player in ipairs(self.players) do
+    --     if player.uid == uid then
+    --         self.q:push({seatno = seatno, hand = hand})
+    --     end
+    -- end
 end
 
 function _M:main()
     local timeout = 3
 
     while true do
-        local ok, _ = self.q:wait(timeout)
+        local ok, err = self.q:wait(timeout)
+        if err == "timeout" then
+            timeout = self:update(self.game:timeout())
+        end
+
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do

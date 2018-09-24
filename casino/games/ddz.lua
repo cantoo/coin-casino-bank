@@ -1,6 +1,7 @@
 local resty_string = require("resty.string")
 local resty_random = require("resty.random")
 local cjson = require("cjson.safe")
+local timerq = require("timerq")
 
 local _M = {
     SEAT_NUM = 3
@@ -8,15 +9,27 @@ local _M = {
 
 local mt = { __index = _M }
 
+local game_status = {
+    -- 还没有人加入
+    suspend = "suspend",
+    
+    -- 有人加入，玩家数不够，或有人不觉没准备
+    waiting = "waiting",
+
+    -- 正在进行中
+    playing = "playing",
+
+}
+
 local seat_status = {
-    empty = 0,
-    seated = 1,
-    ready = 10,
+    empty = "empty",
+    seated = "seated",
+    ready = "ready",
 }
 
 local actions = {
-    claim = 10,
-    play = 20,
+    claim = "claim",
+    play = "play",
 }
 
 local timeouts = {
@@ -26,17 +39,21 @@ local timeouts = {
 
 function _M.new()
     return setmetatable({
-        round_id = 0,
+        round = 0,
+        status = game_status.suspend,
         seats = { 
             {
+                uid = 0,
                 status = seat_status.empty,
                 cards = {},
             }, 
-		{
+		    {
+                uid = 0,
                 status = seat_status.empty,
                 cards = {},
             }, 
-		{
+		    {
+                uid = 0,
                 status = seat_status.empty,
                 cards = {},
             }
@@ -47,6 +64,7 @@ function _M.new()
             timeout = 0,
         },
         first_claim = 0,
+        tq = timerq.new(),
     }, mt)
 end
 
@@ -248,14 +266,18 @@ function _M:with_next(next, res)
     self.next = next
 
     for seatno, output in ipairs(res.outputs) do
+        output.next = {
+            timeout = next.timeout,
+            seatno = next.seatno,
+        }
+        
         if seatno == next.seatno then
             output.token = next.token
-            output.timeout = next.timeout
-            break
         end
     end
 
     res.timeout = next.timeout + 4
+    self.tq:add(res.timeout, next)
     return res
 end
 
@@ -275,13 +297,16 @@ function _M:shuffle()
             {
                 typ = "deal",
                 cards = {},
+                seatno = 1,
             },
             {
                 typ = "deal",
+                seatno = 2,
                 cards = {},
             },
             {
                 typ = "deal",
+                seatno = 3,
                 cards = {},
             }
         }    
@@ -302,11 +327,26 @@ function _M:shuffle()
     }, res)
 end
 
-function _M:join()
+function _M:comeback(uid)
+    if self.status ~= game_status.suspend then
+        return nil
+    end
+
+    for seatno, player in ipairs(self.players) do
+        if player.uid == uid then
+            return seatno
+        end
+    end
+
+    return nil
+end
+
+function _M:join(uid)
     local seatno
     for i, seat in ipairs(self.seats) do
         if seat.status == seat_status.empty then
             seat.status = seat_status.ready
+            seat.uid = uid
             seatno = i
             break
         end   
@@ -322,6 +362,10 @@ function _M:join()
 
     local res = self:shuffle()
     return seatno, res
+end
+
+function _M:timeout()
+    return self.tq:expires()
 end
 
 function _M:play(seatno, hand)
