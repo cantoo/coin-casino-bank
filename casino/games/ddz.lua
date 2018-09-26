@@ -13,7 +13,7 @@ local game_status = {
     -- 还没有人加入
     suspend = "suspend",
     
-    -- 有人加入，玩家数不够，或有人不觉没准备
+    -- 有人加入，玩家数不够，或有人不准备
     waiting = "waiting",
 
     -- 正在进行中
@@ -46,25 +46,25 @@ function _M.new()
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                timeout = nil,
+                next = "",
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                timeout = nil,
+                next = "",
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                timeout = nil,
+                next = "",
             }
         },
-        next = {
-            seatno = 0,
-            action = "",
-            timeout = 0,
-        },
         first_claim = 0,
-        tq = timerq.new(),
     }, mt)
 end
 
@@ -260,10 +260,35 @@ local function sort_cards(cards)
     end)
 end
 
+function _M:timeout()
+    local timeout
+    for _, player in ipairs(res.players) do
+        if type(player.timeout) == "number" then
+            if timeout == nil or timeout > player.timeout then
+                timeout = player.timeout
+            end
+        end
+    end
+
+    return timeout
+end
+
+function _M:expire()
+    local timeout = self:timeout()
+end
+
 function _M:with_next(next, res)
     -- generator token
     next.token = random(4)
     self.next = next
+
+    for seatno, player in ipairs(res.players) do
+        if seatno == next.seatno then
+            player.timeout = next.timeout
+        else
+            player.timeout = nil
+        end
+    end
 
     for seatno, output in ipairs(res.outputs) do
         output.next = {
@@ -276,8 +301,6 @@ function _M:with_next(next, res)
         end
     end
 
-    res.timeout = next.timeout + 4
-    self.tq:add(res.timeout, next)
     return res
 end
 
@@ -362,10 +385,6 @@ function _M:join(uid)
 
     local res = self:shuffle()
     return seatno, res
-end
-
-function _M:timeout()
-    return self.tq:expires()
 end
 
 function _M:play(seatno, hand)

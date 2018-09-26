@@ -25,26 +25,24 @@ function _M.new(tid)
     return setmetatable(obj, mt)
 end
 
-function _M:update(res)
+function _M:push(res)
     if type(res) ~= "table" then
         return 
     end
 
     if type(res.outputs) == "table" then
-        for i, output in ipairs(res.outputs) do
-            if self.players[i].q then
+        for seatno, output in ipairs(res.outputs) do
+            if self.players[seatno].q then
                 if type(output) == "string" and output ~= "" then
-                    self.players[i].q:push(tostring(output))
+                    self.players[seatno].q:push(tostring(output))
                 end
 
                 if type(output) == "table" then
-                    self.players[i].q:push(cjson.encode(output))
+                    self.players[seatno].q:push(cjson.encode(output))
                 end
             end
         end
     end 
-
-    return res.timeout or 1
 end
 
 -- TODO: 新加入，入场金合法性判断
@@ -70,7 +68,7 @@ function _M:sit(p)
         local player = self.players[seatno]
         player.seq = 1
         player.q = mq.new()
-        self:update(res)
+        self:push(res)
         return seatno
     end
 
@@ -116,18 +114,16 @@ function _M:play(uid, hand)
 end
 
 function _M:main()
-    local timeout = 3
-
     while true do
-        local ok, err = self.q:wait(timeout)
+        local ok, err = self.q:wait((self.game:timeout() or 0) + 4)
         if err == "timeout" then
-            timeout = self:update(self.game:timeout())
+            timeout = self:push(self.game:expire())
         end
 
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                timeout = self:update(self.game:play(hand.seatno, hand.hand))
+                timeout = self:push(self.game:play(hand.seatno, hand.hand))
             end
         end
     end
