@@ -25,7 +25,7 @@ function _M.new(tid)
     return setmetatable(obj, mt)
 end
 
-function _M:push(res)
+function _M:output(res)
     if type(res) ~= "table" then
         return 
     end
@@ -48,14 +48,14 @@ end
 -- TODO: 新加入，入场金合法性判断
 -- TODO: 防作弊，相邻IP，玩家间互相屏蔽等
 
-function _M:sit(p)
-    local seatno = self.game:comeback(p)
-    if seatno then
-        -- 重放
-        local player = self.players[seatno]
-        player.seq = 1
-        return seatno
-    end
+function _M:join(p)
+    -- local seatno = self.game:comeback(p)
+    -- if seatno then
+    --     -- 重放
+    --     local player = self.players[seatno]
+    --     player.seq = 1
+    --     return seatno
+    -- end
     
     -- for seatno, player in ipairs(self.players) do
     --     if self.game.players[seatno].uid == p.uid then
@@ -79,7 +79,7 @@ function _M:wait(uid)
     local seatno = self.game:get_seatno(uid)
     if seatno then
     local player = self.players[seatno]
-        local ok, _ = player.q:wait(3)
+        local ok, _ = player.q:wait(10)
         if ok then
             local res = player.q:get(player.seq)
             player.seq = player.seq + #res
@@ -115,15 +115,15 @@ end
 
 function _M:main()
     while true do
-        local ok, err = self.q:wait((self.game:timeout() or 0) + 4)
+        local ok, err = self.q:wait(self.game:timeout() + 4)
         if err == "timeout" then
-            timeout = self:push(self.game:expire())
+            self:output(self.game:expire())
         end
 
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                timeout = self:push(self.game:play(hand.seatno, hand.hand))
+                self:output(self.game:play(hand.seatno, hand.hand))
             end
         end
     end

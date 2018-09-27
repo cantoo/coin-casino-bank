@@ -5,9 +5,9 @@ local _M = {}
 
 local desks = {}
 
-function _M.sit(tid, player)
+function _M.join(tid, player)
     for _, d in ipairs(desks) do
-        if d.tid == tid and d:sit(player) then
+        if d.tid == tid and d:join(player) then
             return d
         end
     end
@@ -17,8 +17,8 @@ end
 
 function _M.main()
     for i = 1, 1 do
-	-- TODO: get tid from seq server
-	local d = desk.new(i)
+	    -- TODO: get tid from seq server
+	    local d = desk.new(i)
         table.insert(desks, d)
         ngx.timer.at(0, function () d:main() end)
     end

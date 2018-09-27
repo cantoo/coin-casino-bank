@@ -18,7 +18,7 @@ if not wb then
 end
 
 
-local desk = room.sit(tid, { uid = uid } )
+local desk = room.join(tid, { uid = uid } )
 if not desk then
     return ngx.exit(444)
 end

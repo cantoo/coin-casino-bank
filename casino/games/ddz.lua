@@ -10,9 +10,6 @@ local _M = {
 local mt = { __index = _M }
 
 local game_status = {
-    -- 还没有人加入
-    suspend = "suspend",
-    
     -- 有人加入，玩家数不够，或有人不准备
     waiting = "waiting",
 
@@ -33,38 +30,45 @@ local actions = {
 }
 
 local timeouts = {
-    claim = 15,
-    play = 30,
+    [actions.claim] = 15,
+    [actions.play] = 30,
+}
+
+local typs = {
+    deal = "deal",
+    turn = "turn",
+    claim = "claim",
+    not_claim = "not_claim",
 }
 
 function _M.new()
     return setmetatable({
         round = 0,
-        status = game_status.suspend,
+        status = game_status.waiting,
         seats = { 
             {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
-                timeout = nil,
-                next = "",
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
-                timeout = nil,
-                next = "",
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
-                timeout = nil,
-                next = "",
             }
         },
+        turn = {
+            seatno = 0,
+            action = "",
+            token = "",
+        },
         first_claim = 0,
+        the_lord = 0,
     }, mt)
 end
 
@@ -212,6 +216,7 @@ local function get_card_by_index(index)
         local rest = index % 4
         return {
             value = value + 3,
+            hold = true,
             display = {
                 name = name[value + 1],
                 color = color[rest + 1]
@@ -222,6 +227,7 @@ local function get_card_by_index(index)
     if index >= 49 and index <= 52 then
         return {
             value = 15,
+            hold = true,
             display = {
                 name = name[13],
                 color = color[index % 4 + 1]
@@ -233,6 +239,7 @@ local function get_card_by_index(index)
     if index == 53 then
         return {
             value = 16,
+            hold = true,
             display = {
                 name = "BJ",
                 color = "black"
@@ -244,6 +251,7 @@ local function get_card_by_index(index)
     if index == 54 then
         return {
             value = 17,
+            hold = true,
             display = {
                 name = "RJ",
                 color = "red"
@@ -261,50 +269,64 @@ local function sort_cards(cards)
 end
 
 function _M:timeout()
-    local timeout
-    for _, player in ipairs(res.players) do
-        if type(player.timeout) == "number" then
-            if timeout == nil or timeout > player.timeout then
-                timeout = player.timeout
-            end
-        end
-    end
+    -- local timeout
+    -- for _, player in ipairs(res.players) do
+    --     if type(player.timeout) == "number" then
+    --         if timeout == nil or timeout > player.timeout then
+    --             timeout = player.timeout
+    --         end
+    --     end
+    -- end
 
-    return timeout
+    -- return timeout
+
+    return timeouts[self.turn.action]
 end
 
 function _M:expire()
-    local timeout = self:timeout()
+    if self.turn.action == actions.claim then
+        local not_claim = {
+            {
+                typ = typs.not_claim,
+                seatno = self.turn.seatno,
+            }
+        }
+
+        local outputs = {not_claim, not_claim, not_claim}
+        local seatno = (self.turn.seatno + 1) % _M.SEAT_NUM
+
+        if seatno == self.first_claim then 
+            outputs = self:turn(self:shuffle(outputs))
+        else 
+            self.turn.seatno = seatno
+            outputs = self:turn(outputs)
+        end 
+
+        return {outputs = outputs}
+    end
 end
 
-function _M:with_next(next, res)
+function _M:turn(outputs)
     -- generator token
-    next.token = random(4)
-    self.next = next
-
-    for seatno, player in ipairs(res.players) do
-        if seatno == next.seatno then
-            player.timeout = next.timeout
-        else
-            player.timeout = nil
-        end
-    end
-
-    for seatno, output in ipairs(res.outputs) do
-        output.next = {
-            timeout = next.timeout,
-            seatno = next.seatno,
+    self.turn.token = random(4)
+    for seatno, output in ipairs(outputs) do
+        local turn = {
+            typ = typs.turn,
+            action = self.turn.action,
+            seatno = self.turn.seatno,
         }
         
-        if seatno == next.seatno then
-            output.token = next.token
+        if seatno == self.turn.seatno then
+            turn.token = self.turn.token
         end
+
+        table.insert(output, turn)
     end
 
-    return res
+    return outputs
 end
 
-function _M:shuffle()
+function _M:shuffle(outputs)
     local cards = {}
     for i = 1, 54 do
         table.insert(cards, i)
@@ -315,56 +337,58 @@ function _M:shuffle()
         cards[i], cards[rd] = cards[rd], cards[i]
     end
 
-    local res = { 
-        outputs = {
-            {
-                typ = "deal",
-                cards = {},
-                seatno = 1,
-            },
-            {
-                typ = "deal",
-                seatno = 2,
-                cards = {},
-            },
-            {
-                typ = "deal",
-                seatno = 3,
-                cards = {},
-            }
-        }    
+    local deal1 =  {
+        typ = typs.deal,
+        cards = {},
+    }
+    
+    local deal2 =  {
+        typ = typs.deal,
+        cards = {},
+    }
+    
+    local deal3 =  {
+        typ = typs.deal,
+        cards = {},
     }
 
     for i = 1, 49, 3 do
-        table.insert(res.outputs[1].cards, get_card_by_index(cards[i]))
-        table.insert(res.outputs[2].cards, get_card_by_index(cards[i + 1]))
-        table.insert(res.outputs[3].cards, get_card_by_index(cards[i + 2]))
+        table.insert(deal1.cards, get_card_by_index(cards[i]))
+        table.insert(deal2.cards, get_card_by_index(cards[i + 1]))
+        table.insert(deal3.cards, get_card_by_index(cards[i + 2]))
     end
+
+    outputs = outputs or {{}, {}, {}}
+    table.insert(outputs[1], deal1)
+    table.insert(outputs[2], deal2)
+    table.insert(outputs[3], deal3)
 
     -- 随机一个人当地主
     self.first_claim = random(1) % 3 + 1
-    return self:with_next({
+    self.turn = {
         seatno = self.first_claim,
         action = actions.claim,
-        timeout = timeouts.claim,
-    }, res)
+    }
+
+    return self:turn(outputs)
 end
 
-function _M:comeback(uid)
-    if self.status ~= game_status.suspend then
-        return nil
-    end
+-- function _M:comeback(uid)
+--     if self.status ~= game_status.waiting then
+--         return nil
+--     end
 
-    for seatno, player in ipairs(self.players) do
-        if player.uid == uid then
-            return seatno
-        end
-    end
+--     for seatno, player in ipairs(self.players) do
+--         if player.uid == uid then
+--             return seatno
+--         end
+--     end
 
-    return nil
-end
+--     return nil
+-- end
 
 function _M:join(uid)
+    -- TODO: 后面这里要改，join和ready要分开
     local seatno
     for i, seat in ipairs(self.seats) do
         if seat.status == seat_status.empty then
@@ -383,8 +407,8 @@ function _M:join(uid)
         end
     end
 
-    local res = self:shuffle()
-    return seatno, res
+    local outputs = self:turn(self:shuffle())
+    return seatno, {outputs = outputs}
 end
 
 function _M:play(seatno, hand)
