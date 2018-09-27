@@ -1,7 +1,6 @@
 local resty_string = require("resty.string")
 local resty_random = require("resty.random")
 local cjson = require("cjson.safe")
-local timerq = require("timerq")
 
 local _M = {
     SEAT_NUM = 3
@@ -280,33 +279,49 @@ function _M:timeout()
 
     -- return timeout
 
+    if self.turn.action == "" then
+        return 10
+    end
+
     return timeouts[self.turn.action]
 end
 
 function _M:expire()
     if self.turn.action == actions.claim then
-        local not_claim = {
+        local outputs = {
             {
-                typ = typs.not_claim,
-                seatno = self.turn.seatno,
+                {
+                    typ = typs.not_claim,
+                    seatno = self.turn.seatno,
+                }
+            },
+            {
+                {
+                    typ = typs.not_claim,
+                    seatno = self.turn.seatno,
+                }
+            },
+            {
+                {
+                    typ = typs.not_claim,
+                    seatno = self.turn.seatno,
+                }
             }
         }
 
-        local outputs = {not_claim, not_claim, not_claim}
-        local seatno = (self.turn.seatno + 1) % _M.SEAT_NUM
-
+        local seatno = self.turn.seatno % _M.SEAT_NUM + 1
         if seatno == self.first_claim then 
-            outputs = self:turn(self:shuffle(outputs))
+            outputs = self:with_turn(self:shuffle(outputs))
         else 
             self.turn.seatno = seatno
-            outputs = self:turn(outputs)
+            outputs = self:with_turn(outputs)
         end 
 
         return {outputs = outputs}
     end
 end
 
-function _M:turn(outputs)
+function _M:with_turn(outputs)
     -- generator token
     self.turn.token = random(4)
     for seatno, output in ipairs(outputs) do
@@ -314,6 +329,7 @@ function _M:turn(outputs)
             typ = typs.turn,
             action = self.turn.action,
             seatno = self.turn.seatno,
+            timeout = timeouts[self.turn.action],
         }
         
         if seatno == self.turn.seatno then
@@ -362,15 +378,16 @@ function _M:shuffle(outputs)
     table.insert(outputs[1], deal1)
     table.insert(outputs[2], deal2)
     table.insert(outputs[3], deal3)
+    self.seats[1].cards = deal1.cards
+    self.seats[2].cards = deal2.cards
+    self.seats[3].cards = deal3.cards
 
     -- 随机一个人当地主
     self.first_claim = random(1) % 3 + 1
-    self.turn = {
-        seatno = self.first_claim,
-        action = actions.claim,
-    }
+    self.turn.seatno = self.first_claim
+    self.turn.action = actions.claim
 
-    return self:turn(outputs)
+    return outputs
 end
 
 -- function _M:comeback(uid)
@@ -407,8 +424,18 @@ function _M:join(uid)
         end
     end
 
-    local outputs = self:turn(self:shuffle())
+    local outputs = self:with_turn(self:shuffle())
     return seatno, {outputs = outputs}
+end
+
+function _M:get_seatno(uid)
+    for seatno, seat in ipairs(self.seats) do
+        if seat.uid == uid then
+            return seatno
+        end
+    end
+
+    return nil
 end
 
 function _M:play(seatno, hand)

@@ -25,7 +25,7 @@ function _M.new(tid)
     return setmetatable(obj, mt)
 end
 
-function _M:output(res)
+function _M:push(res)
     if type(res) ~= "table" then
         return 
     end
@@ -63,7 +63,7 @@ function _M:join(p)
     --     end
     -- end
 
-    local seatno, res = self.game:join(uid)
+    local seatno, res = self.game:join(p.uid)
     if seatno then
         local player = self.players[seatno]
         player.seq = 1
@@ -78,7 +78,7 @@ end
 function _M:wait(uid) 
     local seatno = self.game:get_seatno(uid)
     if seatno then
-    local player = self.players[seatno]
+        local player = self.players[seatno]
         local ok, _ = player.q:wait(10)
         if ok then
             local res = player.q:get(player.seq)
@@ -117,13 +117,13 @@ function _M:main()
     while true do
         local ok, err = self.q:wait(self.game:timeout() + 4)
         if err == "timeout" then
-            self:output(self.game:expire())
+            self:push(self.game:expire())
         end
 
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                self:output(self.game:play(hand.seatno, hand.hand))
+                self:push(self.game:play(hand.seatno, hand.hand))
             end
         end
     end
