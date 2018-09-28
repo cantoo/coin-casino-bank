@@ -296,23 +296,23 @@ function _M:timeout()
 end
 
 function _M:expire()
-    local outputs = {{}, {}, {}}
+    local res = { outputs = {{}, {}, {}} }
 
     for seatno, seat in ipairs(self.seats) do
         if seat.turn.seatno == seatno  then
             -- 通知前端叫地主超时，默认动作为不叫
             if seat.turn.action == actions.claim then
-                outputs = self:not_claim({seatno = seatno}, outputs)
+                res = self:not_claim({seatno = seatno}, res)
             end
 
             -- 其他 
         end
     end
     
-    return {outputs = outputs}
+    return res
 end
 
-function _M:with_turn(outputs)
+function _M:with_turn(res)
     for seatno, seat in ipairs(self.seats) do
         local turn = {
             typ = typs.turn,
@@ -327,13 +327,13 @@ function _M:with_turn(outputs)
             turn.token = seat.turn.token
         end
 
-        table.insert(outputs[seatno], turn)
+        table.insert(res.outputs[seatno], turn)
     end
 
-    return outputs
+    return res
 end
 
-function _M:shuffle(outputs)
+function _M:shuffle(res)
     local cards = {}
     for i = 1, 54 do
         table.insert(cards, i)
@@ -365,10 +365,11 @@ function _M:shuffle(outputs)
         table.insert(deal3.cards, get_card_by_index(cards[i + 2]))
     end
 
-    outputs = outputs or {{}, {}, {}}
-    table.insert(outputs[1], deal1)
-    table.insert(outputs[2], deal2)
-    table.insert(outputs[3], deal3)
+    res = res or {}
+    res.outputs = res.outputs or {{}, {}, {}}
+    table.insert(res.outputs[1], deal1)
+    table.insert(res.outputs[2], deal2)
+    table.insert(res.outputs[3], deal3)
     self.seats[1].cards = deal1.cards
     self.seats[2].cards = deal2.cards
     self.seats[3].cards = deal3.cards
@@ -380,7 +381,7 @@ function _M:shuffle(outputs)
         seat.turn.seatno = first_claim
     end
 
-    return self:with_turn(outputs)
+    return self:with_turn(res)
 end
 
 -- function _M:comeback(uid)
@@ -417,8 +418,8 @@ function _M:join(uid)
         end
     end
 
-    local outputs = self:shuffle()
-    return seatno, {outputs = outputs}
+    local res = self:shuffle()
+    return seatno, res
 end
 
 function _M:get_seatno(uid)
@@ -434,18 +435,20 @@ end
 function _M:claim()
 end
 
-function _M:not_claim(ha, outputs)
-    table.insert(outputs[1], {
+function _M:not_claim(ha, res)
+    res = res or {}
+    res.outputs = res.outputs or {{}, {}, {}}
+    table.insert(res.outputs[1], {
         typ = typs.not_claim,
         seatno = ha.seatno,
     })
     
-    table.insert(outputs[2], {
+    table.insert(res.outputs[2], {
         typ = typs.not_claim,
         seatno = ha.seatno,
     })
     
-    table.insert(outputs[3], {
+    table.insert(res.outputs[3], {
         typ = typs.not_claim,
         seatno = ha.seatno,
     })
@@ -459,10 +462,10 @@ function _M:not_claim(ha, outputs)
             seat.turn.seatno = seatno
         end
 
-        outputs = self:with_turn(outputs)
+        res = self:with_turn(res)
     end 
 
-    return outputs
+    return res
 end
 
 function _M:action(seatno, hand)
@@ -478,18 +481,18 @@ function _M:action(seatno, hand)
         return nil
     end
 
-    outputs = {{}, {}, {}}
+    res = { outputs = {{}, {}, {}} }
     -- 叫地主
     if ha.action == actions.claim then
-        outputs = self:claim(ha, outputs)
+        res = self:claim(ha, res)
     end
 
     -- 不叫地主
     if ha.action == actions.not_claim then
-        outputs = self:not_claim(ha, outputs)
+        res = self:not_claim(ha, res)
     end
 
-    return {res = outputs}
+    return res
 end
 
 return _M
