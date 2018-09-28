@@ -481,7 +481,7 @@ function _M:action(seatno, hand)
         return nil
     end
 
-    res = { outputs = {{}, {}, {}} }
+    local res = { outputs = {{}, {}, {}} }
     -- 叫地主
     if ha.action == actions.claim then
         res = self:claim(ha, res)
