@@ -302,32 +302,7 @@ function _M:expire()
         if seat.turn.seatno == seatno  then
             -- 通知前端叫地主超时，默认动作为不叫
             if seat.turn.action == actions.claim then
-                table.insert(outputs[1], {
-                    typ = typs.not_claim,
-                    seatno = seat.turn.seatno,
-                })
-                
-                table.insert(outputs[2], {
-                    typ = typs.not_claim,
-                    seatno = seat.turn.seatno,
-                })
-                
-                table.insert(outputs[3], {
-                    typ = typs.not_claim,
-                    seatno = seat.turn.seatno,
-                })
-
-                local seatno = seat.turn.seatno % _M.SEAT_NUM + 1
-                if seatno == self.first_claim then 
-                    outputs = self:shuffle(outputs)
-                else 
-                    for seatno, seat in ipairs(self.seats) do
-                        seat.turn.action = actions.claim
-                        seat.turn.seatno = seatno
-                    end
-
-                    outputs = self:with_turn(outputs)
-                end 
+                outputs = self:not_claim({seatno = seatno}, outputs)
             end
 
             -- 其他 
@@ -459,24 +434,62 @@ end
 function _M:claim()
 end
 
-function _M:not_claim()
+function _M:not_claim(ha, outputs)
+    table.insert(outputs[1], {
+        typ = typs.not_claim,
+        seatno = ha.seatno,
+    })
+    
+    table.insert(outputs[2], {
+        typ = typs.not_claim,
+        seatno = ha.seatno,
+    })
+    
+    table.insert(outputs[3], {
+        typ = typs.not_claim,
+        seatno = ha.seatno,
+    })
+
+    local seatno = ha.seatno % _M.SEAT_NUM + 1
+    if seatno == self.first_claim then 
+        outputs = self:shuffle(outputs)
+    else 
+        for seatno, seat in ipairs(self.seats) do
+            seat.turn.action = actions.claim
+            seat.turn.seatno = seatno
+        end
+
+        outputs = self:with_turn(outputs)
+    end 
+
+    return outputs
 end
 
 function _M:action(seatno, hand)
     local ha = cjson.decode(hand)
-    if type(ha) ~= "table" then
+    if type(ha) ~= "table" or type(ha.action) ~= "string" or type(ha.token) ~= "string" then
         return nil
     end
 
+    ha.seatno = seatno
+    local turn = self.seats[seatno].turn
+    if turn.seatno ~= ha.seatno or turn.action ~= ha.action or turn.token ~= ha.token then
+        ngx.log(ngx.ERR, "not turn hand=", hand, ",turn=", cjson.encode(turn))
+        return nil
+    end
+
+    outputs = {{}, {}, {}}
     -- 叫地主
     if ha.action == actions.claim then
-        return self:claim(ha)
+        outputs = self:claim(ha, outputs)
     end
 
     -- 不叫地主
     if ha.action == actions.not_claim then
-        return self:not_claim(ha)
+        outputs = self:not_claim(ha, outputs)
     end
+
+    return {res = outputs}
 end
 
 return _M
