@@ -25,6 +25,7 @@ local seat_status = {
 
 local actions = {
     claim = "claim",
+    not_claim = "not_claim",
     play = "play",
 }
 
@@ -49,22 +50,32 @@ function _M.new()
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                turn = {
+                    seatno = 0,
+                    action = "",
+                    token = "",
+                }
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                turn = {
+                    seatno = 0,
+                    action = "",
+                    token = "",
+                }
             }, 
 		    {
                 uid = 0,
                 status = seat_status.empty,
                 cards = {},
+                turn = {
+                    seatno = 0,
+                    action = "",
+                    token = "",
+                }
             }
-        },
-        turn = {
-            seatno = 0,
-            action = "",
-            token = "",
         },
         first_claim = 0,
         the_lord = 0,
@@ -268,75 +279,80 @@ local function sort_cards(cards)
 end
 
 function _M:timeout()
-    -- local timeout
-    -- for _, player in ipairs(res.players) do
-    --     if type(player.timeout) == "number" then
-    --         if timeout == nil or timeout > player.timeout then
-    --             timeout = player.timeout
-    --         end
-    --     end
-    -- end
-
-    -- return timeout
-
-    if self.turn.action == "" then
-        return 10
+    local timeout
+    for _, seat in ipairs(res.seats) do
+        if seat.action ~= "" and type(timeouts[seat.action]) == "number" then
+            if timeout == nil or timeout > timeouts[seat.action] then
+                timeout = timeouts[seat.action]
+            end
+        end
     end
 
-    return timeouts[self.turn.action]
+    if not timeout then
+        timeout = 10
+    end
+
+    return timeout
 end
 
 function _M:expire()
-    if self.turn.action == actions.claim then
-        local outputs = {
-            {
-                {
-                    typ = typs.not_claim,
-                    seatno = self.turn.seatno,
-                }
-            },
-            {
-                {
-                    typ = typs.not_claim,
-                    seatno = self.turn.seatno,
-                }
-            },
-            {
-                {
-                    typ = typs.not_claim,
-                    seatno = self.turn.seatno,
-                }
-            }
-        }
+    local outputs = {{}, {}, {}}
 
-        local seatno = self.turn.seatno % _M.SEAT_NUM + 1
-        if seatno == self.first_claim then 
-            outputs = self:with_turn(self:shuffle(outputs))
-        else 
-            self.turn.seatno = seatno
-            outputs = self:with_turn(outputs)
-        end 
+    for seatno, seat in ipairs(self.seats) do
+        if seat.turn.seatno == seatno  then
+            -- 通知前端叫地主超时，默认动作为不叫
+            if seat.turn.action == actions.claim then
+                table.insert(outputs[1], {
+                    typ = typs.not_claim,
+                    seatno = seat.turn.seatno,
+                })
+                
+                table.insert(outputs[2], {
+                    typ = typs.not_claim,
+                    seatno = seat.turn.seatno,
+                })
+                
+                table.insert(outputs[3], {
+                    typ = typs.not_claim,
+                    seatno = seat.turn.seatno,
+                })
 
-        return {outputs = outputs}
+                local seatno = seat.turn.seatno % _M.SEAT_NUM + 1
+                if seatno == self.first_claim then 
+                    outputs = self:shuffle(outputs)
+                else 
+                    for seatno, seat in ipairs(self.seats) do
+                        seat.turn.action = actions.claim
+                        seat.turn.seatno = seatno
+                    end
+
+                    outputs = self:with_turn(outputs)
+                end 
+            end
+
+            -- 其他 
+        end
     end
+    
+    return {outputs = outputs}
 end
 
 function _M:with_turn(outputs)
-    -- generator token
-    self.turn.token = random(4)
-    for seatno, output in ipairs(outputs) do
+    for seatno, seat in ipairs(self.seats) do
         local turn = {
             typ = typs.turn,
-            action = self.turn.action,
-            seatno = self.turn.seatno,
-            timeout = timeouts[self.turn.action],
+            action = seat.turn.action,
+            seatno = seat.turn.seatno,
+            timeout = timeouts[seat.turn.action],
         }
         
-        if seatno == self.turn.seatno then
-            turn.token = self.turn.token
+        if seatno == seat.turn.seatno then
+            -- generator token
+            seat.turn.token = random(4)
+            turn.token = seat.turn.token
         end
 
-        table.insert(output, turn)
+        table.insert(outputs[seatno], turn)
     end
 
     return outputs
@@ -384,10 +400,12 @@ function _M:shuffle(outputs)
 
     -- 随机一个人当地主
     self.first_claim = random(1) % 3 + 1
-    self.turn.seatno = self.first_claim
-    self.turn.action = actions.claim
+    for seatno, seat in ipairs(self.seats) do
+        seat.turn.action = actions.claim
+        seat.turn.seatno = first_claim
+    end
 
-    return outputs
+    return self:with_turn(outputs)
 end
 
 -- function _M:comeback(uid)
@@ -424,7 +442,7 @@ function _M:join(uid)
         end
     end
 
-    local outputs = self:with_turn(self:shuffle())
+    local outputs = self:shuffle()
     return seatno, {outputs = outputs}
 end
 
@@ -438,10 +456,27 @@ function _M:get_seatno(uid)
     return nil
 end
 
-function _M:play(seatno, hand)
-    return {
-        outputs = {hand, hand, hand}
-    }
+function _M:claim()
+end
+
+function _M:not_claim()
+end
+
+function _M:action(seatno, hand)
+    local ha = cjson.decode(hand)
+    if type(ha) ~= "table" then
+        return nil
+    end
+
+    -- 叫地主
+    if ha.action == actions.claim then
+        return self:claim(ha)
+    end
+
+    -- 不叫地主
+    if ha.action == actions.not_claim then
+        return self:not_claim(ha)
+    end
 end
 
 return _M

@@ -25,7 +25,7 @@ function _M.new(tid)
     return setmetatable(obj, mt)
 end
 
-function _M:push(res)
+function _M:update(res)
     if type(res) ~= "table" then
         return 
     end
@@ -68,7 +68,7 @@ function _M:join(p)
         local player = self.players[seatno]
         player.seq = 1
         player.q = mq.new()
-        self:push(res)
+        self:update(res)
         return seatno
     end
 
@@ -89,41 +89,27 @@ function _M:wait(uid)
         return {}
     end
 
-    -- for _, player in ipairs(self.players) do
-    --     if self.game:get_seatno == uid then
-    --         local ok, _ = player.q:wait(3)
-    --         if ok then
-    --             local res = player.q:get(player.seq)
-    --             player.seq = player.seq + #res
-    --             return res
-    --         end
-
-    --         return {}
-    --     end
-    -- end
-
     return nil
 end
 
-function _M:play(uid, hand)
-    -- for seatno, player in ipairs(self.players) do
-    --     if player.uid == uid then
-    --         self.q:push({seatno = seatno, hand = hand})
-    --     end
-    -- end
+function _M:action(uid, hand)
+    local seatno = self.game:get_seatno(uid)
+    if seatno then
+        self.q:push({seatno = seatno, hand = hand})
+    end
 end
 
 function _M:main()
     while true do
         local ok, err = self.q:wait(self.game:timeout() + 4)
         if err == "timeout" then
-            self:push(self.game:expire())
+            self:update(self.game:expire())
         end
 
         if ok then
             local hands = self.q:flush()
             for _, hand in ipairs(hands) do
-                self:push(self.game:play(hand.seatno, hand.hand))
+                self:update(self.game:action(hand.seatno, hand.hand))
             end
         end
     end
