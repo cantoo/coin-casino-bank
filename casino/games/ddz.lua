@@ -78,7 +78,10 @@ function _M.new()
             }
         },
         first_claim = 0,
-        the_lord = 0,
+        lord = {
+            seatno = 0,
+            cards = {},
+        },
     }, mt)
 end
 
@@ -226,7 +229,6 @@ local function get_card_by_index(index)
         local rest = index % 4
         return {
             value = value + 3,
-            hold = true,
             display = {
                 name = name[value + 1],
                 color = color[rest + 1]
@@ -237,7 +239,6 @@ local function get_card_by_index(index)
     if index >= 49 and index <= 52 then
         return {
             value = 15,
-            hold = true,
             display = {
                 name = name[13],
                 color = color[index % 4 + 1]
@@ -249,7 +250,6 @@ local function get_card_by_index(index)
     if index == 53 then
         return {
             value = 16,
-            hold = true,
             display = {
                 name = "BJ",
                 color = "black"
@@ -261,7 +261,6 @@ local function get_card_by_index(index)
     if index == 54 then
         return {
             value = 17,
-            hold = true,
             display = {
                 name = "RJ",
                 color = "red"
@@ -280,10 +279,11 @@ end
 
 function _M:timeout()
     local timeout
-    for _, seat in ipairs(res.seats) do
-        if seat.action ~= "" and type(timeouts[seat.action]) == "number" then
-            if timeout == nil or timeout > timeouts[seat.action] then
-                timeout = timeouts[seat.action]
+    for _, seat in ipairs(self.seats) do
+        local turn = seat.turn
+        if turn.action ~= "" and type(timeouts[turn.action]) == "number" then
+            if timeout == nil or timeout > timeouts[turn.action] then
+                timeout = timeouts[turn.action]
             end
         end
     end
@@ -303,6 +303,7 @@ function _M:expire()
             -- 通知前端叫地主超时，默认动作为不叫
             if seat.turn.action == actions.claim then
                 res = self:not_claim({seatno = seatno}, res)
+                break
             end
 
             -- 其他 
@@ -334,6 +335,12 @@ function _M:with_turn(res)
 end
 
 function _M:shuffle(res)
+    for _, seat in ipairs(self.seats) do
+        if seat.status ~= seat_status.ready then
+            return nil
+        end
+    end
+
     local cards = {}
     for i = 1, 54 do
         table.insert(cards, i)
@@ -344,41 +351,33 @@ function _M:shuffle(res)
         cards[i], cards[rd] = cards[rd], cards[i]
     end
 
-    local deal1 =  {
-        typ = typs.deal,
-        cards = {},
-    }
-    
-    local deal2 =  {
-        typ = typs.deal,
-        cards = {},
-    }
-    
-    local deal3 =  {
-        typ = typs.deal,
-        cards = {},
-    }
-
-    for i = 1, 49, 3 do
-        table.insert(deal1.cards, get_card_by_index(cards[i]))
-        table.insert(deal2.cards, get_card_by_index(cards[i + 1]))
-        table.insert(deal3.cards, get_card_by_index(cards[i + 2]))
+    local deals = {}
+    for _, _ in ipairs(self.seats) do
+        table.insert(deals, {
+            typ = typs.deal,
+            cards = {},
+        })
     end
 
-    res = res or {}
-    res.outputs = res.outputs or {{}, {}, {}}
-    table.insert(res.outputs[1], deal1)
-    table.insert(res.outputs[2], deal2)
-    table.insert(res.outputs[3], deal3)
-    self.seats[1].cards = deal1.cards
-    self.seats[2].cards = deal2.cards
-    self.seats[3].cards = deal3.cards
+    for i = 1, 49, 3 do
+        table.insert(deals[1].cards, get_card_by_index(cards[i]))
+        table.insert(deals[2].cards, get_card_by_index(cards[i + 1]))
+        table.insert(deals[3].cards, get_card_by_index(cards[i + 2]))
+    end
 
     -- 随机一个人当地主
     self.first_claim = random(1) % 3 + 1
+    table.insert(self.lord.cards, get_card_by_index(cards[52]))
+    table.insert(self.lord.cards, get_card_by_index(cards[53]))
+    table.insert(self.lord.cards, get_card_by_index(cards[54]))
+
     for seatno, seat in ipairs(self.seats) do
+        sort_cards(deals[seatno].cards)
+        table.insert(res.outputs[seatno], deals[seatno])
+        seat.cards = deals[seatno].cards
+
         seat.turn.action = actions.claim
-        seat.turn.seatno = first_claim
+        seat.turn.seatno = self.first_claim
     end
 
     return self:with_turn(res)
@@ -400,26 +399,26 @@ end
 
 function _M:join(uid)
     -- TODO: 后面这里要改，join和ready要分开
-    local seatno
+    --local seatno
     for i, seat in ipairs(self.seats) do
         if seat.status == seat_status.empty then
             seat.status = seat_status.ready
             seat.uid = uid
-            seatno = i
-            break
+            return i
         end   
     end
 
-    if seatno then
-        for _, seat in ipairs(self.seats) do
-            if seat.status ~= seat_status.ready then
-                return seatno
-            end
-        end
-    end
+    -- if seatno then
+    --     for _, seat in ipairs(self.seats) do
+    --         if seat.status ~= seat_status.ready then
+    --             return seatno
+    --         end
+    --     end
+    -- end
 
-    local res = self:shuffle()
-    return seatno, res
+    -- local res = self:shuffle()
+    -- return seatno, res
+    return nil
 end
 
 function _M:get_seatno(uid)
@@ -432,32 +431,52 @@ function _M:get_seatno(uid)
     return nil
 end
 
-function _M:claim()
+function _M:claim(input, res)    
+    for seatno, seat in ipairs(self.seats) do
+        if seatno == input.seatno then
+            for _, card in ipairs(self.lord.cards) do
+                table.insert(seat.cards, card)
+            end
+
+            sort_cards(seat.cards)
+            table.insert(res.outputs[seatno], {
+                typ = typs.claim,
+                seatno = input.seatno,
+                cards = seat.cards,
+                lord = {
+                    cards = self.lord.cards
+                }
+            })
+        else
+            table.insert(res.outputs[seatno], {
+                typ = typs.claim,
+                seatno = input.seatno,
+                lord = {
+                    cards = self.lord.cards
+                }
+            })
+        end
+
+        seat.turn.action = actions.play
+        seat.turn.seatno = input.seatno
+    end
+
+    return self:with_turn(res)
 end
 
-function _M:not_claim(ha, res)
-    res = res or {}
-    res.outputs = res.outputs or {{}, {}, {}}
-    table.insert(res.outputs[1], {
-        typ = typs.not_claim,
-        seatno = ha.seatno,
-    })
-    
-    table.insert(res.outputs[2], {
-        typ = typs.not_claim,
-        seatno = ha.seatno,
-    })
-    
-    table.insert(res.outputs[3], {
-        typ = typs.not_claim,
-        seatno = ha.seatno,
-    })
+function _M:not_claim(input, res)
+    for seatno, seat in ipairs(self.seats) do
+        table.insert(res.outputs[seatno], {
+            typ = typs.not_claim,
+            seatno = input.seatno,
+        })
+    end
 
-    local seatno = ha.seatno % _M.SEAT_NUM + 1
+    local seatno = input.seatno % _M.SEAT_NUM + 1
     if seatno == self.first_claim then 
-        outputs = self:shuffle(outputs)
+        res = self:shuffle(res)
     else 
-        for seatno, seat in ipairs(self.seats) do
+        for _, seat in ipairs(self.seats) do
             seat.turn.action = actions.claim
             seat.turn.seatno = seatno
         end
@@ -468,28 +487,38 @@ function _M:not_claim(ha, res)
     return res
 end
 
-function _M:action(seatno, hand)
-    local ha = cjson.decode(hand)
-    if type(ha) ~= "table" or type(ha.action) ~= "string" or type(ha.token) ~= "string" then
+function _M:action(seatno, input)
+    local ipt = cjson.decode(input)
+    if type(ipt) ~= "table" or type(ipt.action) ~= "string" or type(ipt.token) ~= "number" then
         return nil
     end
 
-    ha.seatno = seatno
     local turn = self.seats[seatno].turn
-    if turn.seatno ~= ha.seatno or turn.action ~= ha.action or turn.token ~= ha.token then
-        ngx.log(ngx.ERR, "not turn hand=", hand, ",turn=", cjson.encode(turn))
+    if turn.seatno ~= seatno or turn.action ~= ipt.action or turn.token ~= ipt.token then
+        ngx.log(ngx.ERR, "invalid input=", input, ",turn=", cjson.encode(turn))
         return nil
     end
 
+    ipt.seatno = seatno
     local res = { outputs = {{}, {}, {}} }
     -- 叫地主
-    if ha.action == actions.claim then
-        res = self:claim(ha, res)
+    if ipt.action == actions.claim then
+        res = self:claim(ipt, res)
     end
 
     -- 不叫地主
-    if ha.action == actions.not_claim then
-        res = self:not_claim(ha, res)
+    if ipt.action == actions.not_claim then
+        res = self:not_claim(ipt, res)
+    end
+
+    return res
+end
+
+function _M:control(cmd)
+    ngx.log(ngx.DEBUG, "cmd=", cjson.encode(cmd))
+    local res = { outputs = {{}, {}, {}} }
+    if cmd.cmd == "new_player" then
+        res = self:shuffle(res)
     end
 
     return res

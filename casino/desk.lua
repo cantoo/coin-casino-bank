@@ -37,7 +37,7 @@ function _M:update(res)
                     self.players[seatno].q:push(tostring(output))
                 end
 
-                if type(output) == "table" then
+                if type(output) == "table" and #output > 0 then
                     self.players[seatno].q:push(cjson.encode(output))
                 end
             end
@@ -68,7 +68,7 @@ function _M:join(p)
         local player = self.players[seatno]
         player.seq = 1
         player.q = mq.new()
-        self:update(res)
+        self.q:push({cmd = "new_player"})
         return seatno
     end
 
@@ -92,10 +92,10 @@ function _M:wait(uid)
     return nil
 end
 
-function _M:action(uid, hand)
+function _M:action(uid, input)
     local seatno = self.game:get_seatno(uid)
     if seatno then
-        self.q:push({seatno = seatno, hand = hand})
+        self.q:push({seatno = seatno, input = input})
     end
 end
 
@@ -107,9 +107,13 @@ function _M:main()
         end
 
         if ok then
-            local hands = self.q:flush()
-            for _, hand in ipairs(hands) do
-                self:update(self.game:action(hand.seatno, hand.hand))
+            local msgs = self.q:flush()
+            for _, msg in ipairs(msgs) do
+                if msg.cmd then
+                    self:update(self.game:control(msg))
+                else
+                    self:update(self.game:action(msg.seatno, msg.input))
+                end
             end
         end
     end

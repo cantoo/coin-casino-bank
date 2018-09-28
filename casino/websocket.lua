@@ -8,7 +8,7 @@ local uid = ngx.var.arg_uid
 ngx.log(ngx.DEBUG, "new player,tid=", tid, ",uid=", uid)
 
 local wb, err = server:new{
-  timeout = 45000,
+  timeout = 120000,
   max_payload_len = 4096
 }
 
@@ -72,7 +72,7 @@ while true do
     elseif typ == "pong" then
         --ngx.log(ngx.DEBUG, "client ponged")
     elseif typ == "text" then
-        desk:play(uid, data)
+        desk:action(uid, data)
     end
 end
 
